@@ -6,9 +6,7 @@ import numpy as np;
 
 def _sigma(x):
     c=1;
-    #return 1/(1+math.exp(-c*x));
     return 0.5*(1+math.tanh(c*x));
-
 npf = None;
 def sigma(x):
     global npf;
@@ -18,7 +16,6 @@ def sigma(x):
 
 def _dsigma(x):
     c=1;
-    #return _sigma(x)*(1-_sigma(x));
     return c*0.5*(1-math.pow(math.tanh(c*x),2));
             
 npdf = None;
@@ -36,132 +33,101 @@ class Layer:
     
     def __init__(self,M,N):
         self.W = np.zeros((N,M+1));
-        self.W = np.random.randn(N,M+1)*np.sqrt(1/M);
         for i in range(min(N,M+1)):
-            self.W[i,M]=0;
+            self.W[i,i]=random.random();
+            self.W[i,M]=0*-0.5;
         pass;
 
-    def propagate(self,X):
+    def propagate(self,x):
         M = self.W.shape[1]-1;
-        assert( X.shape[0] == M );
-        T = X.shape[1];
-        self.X = np.append(X, np.ones((1,T)), axis = 0);
-        assert( self.X.shape == (M+1,T) );
-        self.Z=np.dot(self.W,self.X);
-        self.Y=sigma(self.Z);
+        assert( x.shape == (M,1) );
+        self.x = np.append(x, [[1]], axis = 0);
+        assert( self.x.shape == (M+1,1) );
+        self.z=np.dot(self.W,self.x);
+        self.y=sigma(self.z);
 
     def backpropagate(self,layer):
-        # remove bias
-        T = self.X.shape[1];
-        W = np.delete(layer.W,layer.W.shape[1]-1,1);
-        assert(layer.dC.shape[1]==T);
-        D=np.dot(np.transpose(W), layer.dC);
-        assert(D.shape[1]==T);
-        self.dC=np.multiply(dsigma(self.Z),D);
-        assert(self.dC.shape == self.Z.shape);
+        #self.dC=np.dot(np.transpose(layer.W), np.multiply(dsigma(layer.z),layer.dC));
+        d=np.dot(np.transpose(layer.W), layer.dC);
+        d=np.delete(d,d.shape[0]-1,0)
+        self.dC=np.multiply(dsigma(self.z),d);
         
-    def settarget(self,Target):
-        T = Target.shape[1];
-        self.dC=2*np.multiply((self.Y - Target),dsigma(self.Z));
-        assert(self.dC.shape[1]==T);
-            
+        #print("   l.dC=",norm(layer.dC));
+        #print("l.ds(z)=",norm(dsigma(layer.z)));
+        #self.dC = np.delete(self.dC,self.dC.shape[0]-1,0)
+        assert(self.dC.shape == self.y.shape);
+        
+    def settarget(self,t):
+        self.dC=2*(self.y - t);
+        
     def adapt(self):
-        # mean
-        T = self.X.shape[1];
-        N = self.W.shape[0];
-        M = self.X.shape[0]-1;
-        dW = np.zeros((N,M+1));
-        for t in range(T):
-            dCt = np.reshape(self.dC[:,t],(N,1));
-            Xt = np.reshape(self.X[:,t],(M+1,1));
-            dW=dW+np.dot(dCt,np.transpose(Xt));
-        mu = .005/(M*N);
+        dW=np.dot(np.multiply(dsigma(self.z),self.dC),np.transpose(self.x));
+        #print("dC=",norm(self.dC));
+        #print("dW=",norm(dW));
+        mu = 0.1;
         assert(self.W.shape == dW.shape);
         if norm(dW)>0:
-            self.W = self.W - mu*dW/(.1+norm(dW));
+            self.W = self.W - mu*dW/norm(dW);
             return True;
-        else:
-            print("warning: null gradient");
         return False;
 
-def propagate(X,layers):
+def propagate(x,layers):
     K = len(layers);
     for k in range(K):
         if k == 0:
-            layers[k].propagate(X);
+            layers[k].propagate(x);
         else:
-            layers[k].propagate(layers[k-1].Y);
+            layers[k].propagate(layers[k-1].y);
 
-def learn(X,T,layers):
+def learn(x,t,layers):
     K = len(layers);
-    propagate(X,layers);       
+    propagate(x,layers);       
     # backprop
-    nG=[];
+    debug=0;
+    #print("input:",np.transpose(x));
     for k in reversed(range(K)):
+        #print("layer:",k);
         if k == K-1:
-            layers[k].settarget(T);
+            layers[k].settarget(t);
         else:
-            layers[k].backpropagate(layers[k+1]);
-        nGk=layers[k].adapt();
-        nG.append(nGk);
-    if not any(nG):
-        return False;
-    return True;
+             layers[k].backpropagate(layers[k+1]);
+        layers[k].adapt();
 
-def J(X,Target,layers):
-    propagate(X,layers);
-    Y=layers[-1].Y;
-    T=X.shape[1];
-    return sum([norm(Y[:,t]-Target[:,t]) for t in range(T)]);
+def _J(x,t,layers):
+    propagate(x,layers);
+    y=layers[-1].y;
+    return norm(y-t);
 
-def dataset(key):
-    if key == "xor":
-        N=[2,2,1];
-        T=4;
-        function=lambda x: int(x[0]!=x[1]);
-    elif key == "sin":
-        N=[1,200,50,1];
-        T=20;
-        function=lambda x: math.sin(x[0]);
-
-    X=np.zeros((N[0],T));
-    Target=np.zeros((N[-1],T)); 
-    for t in range(T):
-        x = np.zeros(N[0]);
-        if key == 'xor':
-            x[0] = int(t&2>0);
-            x[1] = int(t&1>0);
-        if key == 'sin':
-            x[0] = random.random();
-        X[:,t]=x;        
-        Target[0,t]=function(X[:,t]);
-    return N,X,Target;
-
-def decreasing(s):
-    if len(s)<10:
-        return all(x>y for x, y in zip(s, s[1:]));
-    last = s[-1];
-    Last = s[-10:];
-    mean = sum(Last)/len(Last);
-    return last < mean;
-
+def J(X,T,layers):
+    return sum([_J(X[i],T[i],layers) for i in range(len(X))]);
+        
 def main():
-    N,X,Target = dataset('sin');
-
-    T=X.shape[1];
-     # init
+    N=[2,2,2,1];
+    # init
     layers=[];
     for i in range(1,len(N)):
-        layers.append(Layer(N[i-1],N[i]));    
+        layers.append(Layer(N[i-1],N[i]));
+        print(layers[-1].W);
+  
+    X=[];
+    T=[]; 
+    for i in range(4):
+        x = np.zeros((2,1));
+        x[0] = int(i&2>0);
+        x[1] = int(i&1>0);
+        X.append(x);
+        T.append(np.array([int(x[0] or x[1])]));
+
     iter=0;
-    scores=[];
-    while not scores or decreasing(scores):
-        scores.append(J(X,Target,layers));
-        if iter % 100 == 0:
-            print("J=",scores[-1])
-        learn(X,Target,layers);
+    while J(X,T,layers)>0:
+        for i in range(len(X)):
+            learn(X[i],T[i],layers);         
+        print("J=",J(X,T,layers));
+        if iter==100:
+            break;
         iter = iter + 1;
-    print("J=",scores[-1]);
+    
+
 
 if __name__ == '__main__':
     main();
