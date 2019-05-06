@@ -32,10 +32,8 @@ class Layer:
     # M inputs, N outputs
     
     def __init__(self,M,N):
-        self.W = np.zeros((N,M+1));
-        for i in range(min(N,M+1)):
-            self.W[i,i]=random.random();
-            self.W[i,M]=0*-0.5;
+        self.W = np.random.randn(N,M+1);
+        self.dW = np.zeros((N,M+1));
         pass;
 
     def propagate(self,x):
@@ -64,6 +62,9 @@ class Layer:
         dW=np.dot(np.multiply(dsigma(self.z),self.dC),np.transpose(self.x));
         #print("dC=",norm(self.dC));
         #print("dW=",norm(dW));
+        alpha=0.1;
+        dW=alpha*dW + (1-alpha)*self.dW;
+        self.dW=dW;
         mu = 0.1;
         assert(self.W.shape == dW.shape);
         if norm(dW)>0:
@@ -102,7 +103,7 @@ def J(X,T,layers):
     return sum([_J(X[i],T[i],layers) for i in range(len(X))]);
         
 def main():
-    N=[2,2,2,1];
+    N=[2,2,1];
     # init
     layers=[];
     for i in range(1,len(N)):
@@ -116,15 +117,13 @@ def main():
         x[0] = int(i&2>0);
         x[1] = int(i&1>0);
         X.append(x);
-        T.append(np.array([int(x[0] or x[1])]));
+        T.append(np.array([int(x[0] != x[1])]));
 
     iter=0;
     while J(X,T,layers)>0:
         for i in range(len(X)):
             learn(X[i],T[i],layers);         
         print("J=",J(X,T,layers));
-        if iter==100:
-            break;
         iter = iter + 1;
     
 
