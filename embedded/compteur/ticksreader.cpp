@@ -98,7 +98,7 @@ bool TicksReader::take() {
     H.update(a);
     constexpr auto size_adc = sizeof(m_last_adc_value) / sizeof(m_last_adc_value[0]);
     if (m_adc_index >= size_adc) {
-        memset((u8 *)m_last_adc_value, 0, sizeof(m_last_adc_value));
+        // memset((u8 *)m_last_adc_value, 0, sizeof(m_last_adc_value));
         m_adc_index = 0;
     }
     m_last_adc_value[m_adc_index] = a;
@@ -129,17 +129,10 @@ bool TicksReader::take() {
 }
 
 const u8 *TicksReader::histogram_data(usize *L) const {
-    constexpr auto size_adc = sizeof(m_last_adc_value) / sizeof(m_last_adc_value[0]);
-    DBG("m_adc_index:%d size:%d\r\n", m_adc_index, int(size_adc));
-    if (m_adc_index < size_adc)
-        return 0;
     return (u8 *)H.get_packed(L);
 }
 
 const u8 *TicksReader::adc_data(usize *L) const {
-    constexpr auto size_adc = sizeof(m_last_adc_value) / sizeof(m_last_adc_value[0]);
-    if (m_adc_index < size_adc)
-        return 0;
     if (L)
         *L = sizeof(m_last_adc_value);
     return (u8 *)(&m_last_adc_value);

@@ -88,7 +88,7 @@ class EspStarter {
 void send_data() {
     static u32 last_send_time = 0;
     const auto since_last_send_time = common::time::elapsed_since(last_send_time);
-    if (since_last_send_time < (60ul * 1000))
+    if (since_last_send_time < (10ul * 1000))
         return;
     last_send_time = common::time::since_reset();
     EspStarter espStarter;
@@ -97,9 +97,18 @@ void send_data() {
 
     {
         usize L = 0;
+        const auto *data = C->ticksReader()->adc_data(&L);
+        if (data) {
+            auto p = W->post("http://pi.fritz.box:8000/post/adc", data, L, &cb);
+            on_error(p);
+        }
+    }
+
+    {
+        usize L = 0;
         const u8 *data = C->data(&L);
         if (data) {
-            auto p = W->post("http://thinkpad.fritz.box:8000/post/compteur", data, L, &cb);
+            auto p = W->post("http://pi.fritz.box:8000/post/compteur", data, L, &cb);
             on_error(p);
         }
     }
@@ -108,7 +117,7 @@ void send_data() {
         usize L = 0;
         const auto *data = C->ticksReader()->histogram_data(&L);
         if (data) {
-            auto p = W->post("http://thinkpad.fritz.box:8000/post/histogram", data, L, &cb);
+            auto p = W->post("http://pi.fritz.box:8000/post/histogram", data, L, &cb);
             on_error(p);
         }
     }
@@ -118,7 +127,7 @@ void send_data() {
         const auto *data = status::instance.data(&L);
         DBG("data:%d %d", data[0], data[1]);
         if (data) {
-            auto p = W->post("http://thinkpad.fritz.box:8000/post/status", data, L, &cb);
+            auto p = W->post("http://pi.fritz.box:8000/post/status", data, L, &cb);
             on_error(p);
         }
     }
